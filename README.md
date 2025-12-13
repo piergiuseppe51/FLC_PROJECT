@@ -1,2 +1,3 @@
 # FLC_PROJECT
-Progetto FLC nabuk
+Master degree project for the Formal Languages and Compilers course. Group name: Nabuk
+
