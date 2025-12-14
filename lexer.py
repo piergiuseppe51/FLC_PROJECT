@@ -35,13 +35,13 @@ tokens = [
     'DIVIDE',
     'EQ',
     'NEQ',
-    'LT',
-    'GT',
     'LE',
     'GE',
+    'LT',
+    'GT',
+    'ASSIGN',
     'LPAREN',
     'RPAREN',
-    'ASSIGN',
     'COLON',
     'COMMA',
     'INDENT',
@@ -50,3 +50,29 @@ tokens = [
 ] + list(reserved.values())
 
 # -----------------------------------------
+
+# ---------------Simple Rules--------------
+
+# Prefix t_ + Token_name = r'Regex'
+t_PLUS = r'\+'
+t_MINUS = r'-'
+t_TIMES = r'\*'
+t_DIVIDE = r'/'
+
+t_EQ = r'=='
+t_NEQ = r'!='
+t_LE = r'<='
+t_GE = r'>='
+t_LT = r'<'
+t_GT = r'>'
+
+t_ASSIGN = r'='
+t_LPAREN = r'\('
+t_RPAREN = r'\)'
+t_COLON = r':'
+t_COMMA = r','
+
+# -----------------------------------------
+
+# --------------Complex Rules--------------
+
