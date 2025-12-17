@@ -179,10 +179,9 @@ class IndentLexer:
             
             else:
                 yield token
-                
+
         while len(indent_stack) > 1:
             indent_stack.pop()
-
             tok = lex.LexToken()
             tok.type = 'DEDENT'
             tok.value = indent_stack[-1]
@@ -194,3 +193,74 @@ class IndentLexer:
 
 raw_lexer = lex.lex()
 lexer = IndentLexer(raw_lexer)
+
+# --------Just for testing purposes--------
+if __name__ == '__main__':
+    data = '''groupSize = 2
+groupMember1 = "Andrea"
+groupMember2 = 'Piergiuseppe'  # Test strings defined with single quotes
+workingOnTranspiler = True
+componentsToDevelop = 4
+isWorkingHard = False
+
+def encourage_team(member, status):
+    if member == "Andrea" and not status:
+        print("Andrea, wake up! We've got the lexer to do.")
+        return 0
+    elif member == "Piergiuseppe" or status == True:
+        print("Great work, keep it up!")
+        return 1
+    else:
+        return -1
+
+
+if workingOnTranspiler:
+    print("Starting coding session...")
+    
+    if groupSize == 2:
+        print("The team is complete.")
+        
+        for i in range(componentsToDevelop):
+            remaining = 4 - i
+            print(remaining)
+            
+    print("Session ended.")
+
+
+    '''
+
+# Helper function to compute the column of each token
+def find_column(input_text, token):
+    line_start = input_text.rfind('\n', 0, token.lexpos) + 1
+    return (token.lexpos - line_start) + 1    
+    
+lexer.input(data)
+    
+print("---START LEXER TEST---")
+    
+# Table header
+header = f"| {'TYPE':<15} | {'VALUE':<25} | {'LINE':<5} | {'COL':<5} | {'POS':<5} |"
+print("-" * len(header))
+print(header)
+print("-" * len(header))
+
+while True:
+    tok = lexer.token()
+    if not tok: 
+        break
+
+    # Compute column
+    col = find_column(data, tok)
+    
+    # Format the value
+    val = repr(tok.value)
+
+    # Cut if too long not to break the table
+    if len(val) > 23:
+        val = val[:20] + "..."
+
+    # Print the table
+    print(f"| {tok.type:<15} | {val:<25} | {tok.lineno:<5} | {col:<5} | {tok.lexpos:<5} |")
+
+print("-" * len(header))
+print("---TEST LEXER END---")
