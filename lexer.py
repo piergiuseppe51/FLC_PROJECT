@@ -110,3 +110,87 @@ def t_error(t):
 # Characters to ignore
 t_ignore = ' '
 t_ignore_COMMENT = r'\#.*'
+
+# -----------------------------------------
+
+# --------------Indent Lexer---------------
+class IndentLexer:
+    def __init__(self, lexer):
+        self.lexer = lexer
+        self.token_stream = None
+
+    def input(self, data):
+        self.lexer.input(data)
+        self.token_stream = self.filter()
+
+    def token(self):
+        try:
+            return next(self.token_stream)
+        except StopIteration:
+            return None
+        
+    def filter(self):
+        tokens = iter(self.lexer.token, None)
+
+        indent_stack = [0]
+
+        for token in tokens:
+            if token.type == 'NEWLINE':
+                yield token
+
+                try:
+                    next_char = self.lexer.lexdata[self.lexer.lexpos]
+                except IndexError:
+                    next_char = ''
+
+                if next_char == '\n':
+                    continue
+                
+                indent_level = 0
+
+                # Qui c'è il problema del tab. Dobbiamo decidere se gestire anche i tab e se sostituirli con 4 spazi.
+                while self.lexer.lexpos < len(self.lexer.lexdata) and self.lexer.lexdata[self.lexer.lexpos] == ' ':
+                    indent_level += 1
+                    self.lexer.lexpos += 1
+                
+                current_level = indent_stack[-1]
+
+                if indent_level > indent_stack[-1]:
+                    indent_stack.append(indent_level)
+                    tok = lex.LexToken()
+                    tok.type = 'INDENT'
+                    tok.value = indent_level
+                    tok.lineno = token.lineno
+                    tok.lexpos = token.lexpos
+                    yield tok
+                
+                elif indent_level < current_level:
+                    while indent_level < indent_stack[-1]:
+                        indent_stack.pop()
+                        tok = lex.LexToken()
+                        tok.type = 'DEDENT'
+                        tok.value = indent_level
+                        tok.lineno = token.lineno
+                        tok.lexpos = token.lexpos
+                        yield tok
+                    
+                    if indent_level != indent_stack[-1]:
+                        print('Error: Indentation not aligned')
+            
+            else:
+                yield token
+                
+        while len(indent_stack) > 1:
+            indent_stack.pop()
+
+            tok = lex.LexToken()
+            tok.type = 'DEDENT'
+            tok.value = indent_stack[-1]
+            tok.lineno = self.lexer.lineno
+            tok.lexpos = 0
+            yield tok
+
+# -----------------------------------------
+
+raw_lexer = lex.lex()
+lexer = IndentLexer(raw_lexer)
