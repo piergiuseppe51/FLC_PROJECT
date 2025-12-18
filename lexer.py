@@ -195,6 +195,11 @@ raw_lexer = lex.lex()
 lexer = IndentLexer(raw_lexer)
 
 # --------Just for testing purposes--------
+# Helper function to compute the column of each token
+def find_column(input_text, token):
+    line_start = input_text.rfind('\n', 0, token.lexpos) + 1
+    return (token.lexpos - line_start) + 1
+
 if __name__ == '__main__':
     data = '''groupSize = 2
 groupMember1 = "Andrea"
@@ -229,38 +234,33 @@ if workingOnTranspiler:
 
     '''
 
-# Helper function to compute the column of each token
-def find_column(input_text, token):
-    line_start = input_text.rfind('\n', 0, token.lexpos) + 1
-    return (token.lexpos - line_start) + 1    
-    
-lexer.input(data)
-    
-print("---START LEXER TEST---")
-    
-# Table header
-header = f"| {'TYPE':<15} | {'VALUE':<25} | {'LINE':<5} | {'COL':<5} | {'POS':<5} |"
-print("-" * len(header))
-print(header)
-print("-" * len(header))
+    lexer.input(data)
+        
+    print("---START LEXER TEST---")
+        
+    # Table header
+    header = f"| {'TYPE':<15} | {'VALUE':<25} | {'LINE':<5} | {'COL':<5} | {'POS':<5} |"
+    print("-" * len(header))
+    print(header)
+    print("-" * len(header))
 
-while True:
-    tok = lexer.token()
-    if not tok: 
-        break
+    while True:
+        tok = lexer.token()
+        if not tok: 
+            break
 
-    # Compute column
-    col = find_column(data, tok)
-    
-    # Format the value
-    val = repr(tok.value)
+        # Compute column
+        col = find_column(data, tok)
+        
+        # Format the value
+        val = repr(tok.value)
 
-    # Cut if too long not to break the table
-    if len(val) > 23:
-        val = val[:20] + "..."
+        # Cut if too long not to break the table
+        if len(val) > 23:
+            val = val[:20] + "..."
 
-    # Print the table
-    print(f"| {tok.type:<15} | {val:<25} | {tok.lineno:<5} | {col:<5} | {tok.lexpos:<5} |")
+        # Print the table
+        print(f"| {tok.type:<15} | {val:<25} | {tok.lineno:<5} | {col:<5} | {tok.lexpos:<5} |")
 
-print("-" * len(header))
-print("---TEST LEXER END---")
+    print("-" * len(header))
+    print("---TEST LEXER END---")
