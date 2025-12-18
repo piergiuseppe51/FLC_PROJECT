@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Any
 import pprint
 
-# Nodi albero AST usando dataclass
-Expr = Any # solo per chiarezza, a runtime è dinamico
+# --------------Dataclass definiment---------------
+Expr = Any
 
 @dataclass
 class Number:
@@ -28,11 +28,11 @@ class BinOp:
 
 @dataclass
 class UnaryOp:
-    expr: Expr
     op: str
-
+    expr: Expr
+    
 @dataclass
-class AssignStat:  # Assegnamento di una variabile
+class AssignStat:
     name: str
     value: Expr
 
@@ -41,7 +41,11 @@ class PrintStat:
     value: Expr
 
 @dataclass
-class Var: # per leggere la variabile
+class ReturnStat:
+    value: Expr
+
+@dataclass
+class Var:
     name: str
 
 @dataclass
@@ -50,8 +54,8 @@ class InputExpr:
 
 @dataclass
 class FunctionCall:
-    name: str # nome della funzione
-    args: List[Expr] = field(default_factory=list) # lista di espressioni come argomenti
+    name: str
+    args: List[Expr] = field(default_factory=list)
 
 @dataclass
 class ExprStat:
@@ -61,8 +65,7 @@ class ExprStat:
 class IfStat:
     condition: Expr
     true_block: List[Any]
-    # Opzionale: default è None. 
-    false_block: Optional[List[Any]] = None 
+    false_block: Optional[List[Any]] = None  # false_block is defined only if Else statement is present
 
 @dataclass
 class ForStat:
@@ -73,18 +76,23 @@ class ForStat:
 
 @dataclass
 class FunctionDecl:
-    name: str # nome della funzione
-    params: List[str] # lista di nomi dei parametri
-    body: List[Any] # blocco di codice della funzione
+    name: str # function name
+    params: List[str] # List of parameters
+    body: List[Any] # block of code of the function
 
-# precedenza degli operatori
+# -----------------------------------------
+
 precedence = (
-    ('left', 'EQ', 'NEQ', 'LT', 'GT', 'LE', 'GE'),
-    ('left', 'PLUS', 'MINUS'), # + e - hanno meno precedenza
-    ('left', 'TIMES', 'DIVIDE'), # * e / hanno più precedenza
+    ('left', 'OR'),
+    ('left', 'AND'),
+    ('left', 'NOT'),
+    ('nonassoc', 'EQ', 'NEQ', 'LT', 'GT', 'LE', 'GE'),
+    ('left', 'PLUS', 'MINUS'),
+    ('left', 'TIMES', 'DIVIDE'),
+    ('right', 'UMINUS') # Unary MINUS
 )
 
-# regola grammaticale base
+# -----------Basic grammar rules-----------
 def p_program(p):
     '''program : statements'''
     p[0] = p[1]
@@ -107,34 +115,52 @@ def p_statement_newline(p):
     '''statement : NEWLINE'''
     p[0] = None
 
-def p_statement_assign(p): # regola per assegnamento di una variabile
+def p_statement_assign(p):
     '''statement : ID ASSIGN expression NEWLINE'''
-    # p[1] è il nome variabile, p[3] è il valore
     p[0] = AssignStat(p[1], p[3])
 
-# regola per il print
 def p_statement_print(p):
     '''statement : PRINT LPAREN expression RPAREN NEWLINE'''
     p[0] = PrintStat(p[3])
 
+def p_statement_return(p):
+    '''statement : RETURN expression NEWLINE'''
+    p[0] = ReturnStat(p[2])
+
 def p_statement_if(p):
     '''statement : IF expression COLON block
                  | IF expression COLON block ELSE COLON block'''
-    if len(p) == 5: # Caso solo IF. Perchè proprio 5? Perchè c'è p[0]: statement, p[1]: IF, p[2]: expression (La condizione), p[3]: COLON, p[4]: block
-        # Chiama IfStat(condition, true_block, false_block=None)
+    if len(p) == 5: 
         p[0] = IfStat(p[2], p[4]) 
-    else: # Caso IF-ELSE. Qui len(p) == 8
-        # Chiama IfStat(condition, true_block, false_block=block_else)
+    else:
         p[0] = IfStat(p[2], p[4], p[7])
+
+def p_statement_elif(p):
+    '''statement : IF expression COLON block elif_blocks'''
+    p[0] = IfStat(p[2], p[4], p[5])
+
+def p_elif_blocks(p):
+    '''elif_blocks : ELIF expression COLON block elif_blocks
+                   | ELIF expression COLON block ELSE COLON block
+                   | ELIF expression COLON block'''
+    if len(p) == 6:
+        p[0] = [IfStat(p[2], p[4], p[5])] if p[5] else [IfStat(p[2], p[4])]
+    elif len(p) == 8:
+        p[0] = [IfStat(p[2], p[4], p[7])]
+    elif len(p) == 5:
+        p[0] = [IfStat(p[2], p[4])]
 
 def p_block(p):
     '''block : NEWLINE INDENT statements DEDENT'''
-    # p[1] = NEWLINE, p[2] = INDENT, p[3] = statements (La lista di istruzioni), p[4] = DEDENT
     p[0] = p[3]
 
 def p_statement_for(p):
-    '''statement : FOR ID IN RANGE LPAREN expression COMMA expression RPAREN COLON block'''
-    p[0] = ForStat(p[2], p[6], p[8], p[11])
+    '''statement : FOR ID IN RANGE LPAREN expression RPAREN COLON block
+                 | FOR ID IN RANGE LPAREN expression COMMA expression RPAREN COLON block'''
+    if len(p) == 10:
+        p[0] = ForStat(p[2], Number(0), p[6], p[9])
+    else:
+        p[0] = ForStat(p[2], p[6], p[8], p[11])
 
 def p_statement_def(p):
     '''statement : DEF ID LPAREN parameters RPAREN COLON block'''
@@ -155,7 +181,6 @@ def p_statement_expr(p):
     '''statement : expression NEWLINE'''
     p[0] = ExprStat(p[1])
 
-# operazioni matematiche (BinOp)
 def p_expression_binop(p):
     '''expression : expression PLUS expression
                   | expression MINUS expression
@@ -166,9 +191,15 @@ def p_expression_binop(p):
                   | expression GE expression
                   | expression LE expression
                   | expression EQ expression
-                  | expression NEQ expression'''
-    # p[1] è left, p[2] è op, p[3] è right
+                  | expression NEQ expression
+                  | expression AND expression
+                  | expression OR expression'''
     p[0] = BinOp(p[1], p[2], p[3])
+
+def p_expression_unary(p):
+    '''expression : MINUS  expression %prec UMINUS
+                  | NOT expression'''
+    p[0] = UnaryOp(p[1], p[2])
 
 def p_expression_call(p):
     '''expression : ID LPAREN arguments RPAREN'''
@@ -189,17 +220,14 @@ def p_expression_input(p):
     '''expression : INPUT LPAREN STRING RPAREN'''
     p[0] = InputExpr(p[3])
 
-# parentesi nelle espressioni
 def p_expression_group(p):
     '''expression : LPAREN expression RPAREN'''
     p[0] = p[2]
 
-# numeri
 def p_expression_number(p):
     '''expression : NUMBER'''
     p[0] = Number(p[1])
 
-# stringhe
 def p_expression_string(p):
     '''expression : STRING'''
     p[0] = String(p[1])
@@ -217,41 +245,58 @@ def p_empty(p):
     'empty :'
     pass
 
-# gestione errori di sintassi
 def p_error(p):
     if p:
-        print(f"Errore di sintassi al token '{p.value}' (riga {p.lineno})")
+        print(f"Syntax error for token '{p.value}' (line {p.lineno})")
     else:
-        print("Errore di sintassi alla fine del file")
+        print("Syntax error at the end of the file")
 
-# costruisci il parser
+# -----------------------------------------
+
 parser = yacc.yacc()
 
-# TEST - mancano le regole per gli if o def. abbiamo scritto solo per PRINT e MATEMATICA
-
+# --------Just for testing purposes--------
 if __name__ == '__main__':
-    # Usiamo textwrap.dedent per rimuovere l'indentazione "estetica" della stringa
-    test_code = textwrap.dedent("""
-    x = 10
-    limit = 5
-    
-    print("Inizio Controllo")
+    test_code = textwrap.dedent("""groupSize = 2
+groupMember1 = "Andrea"
+groupMember2 = 'Piergiuseppe'  # Test strings defined with single quotes
+workingOnTranspiler = True
+componentsToDevelop = 4
+isWorkingHard = False
 
-    if x > limit:
-        print("Maggiore")
-        bonus = x + 2
-        print(bonus)
+def encourage_team(member, status):
+    if member == "Andrea" and not status:
+        print("Andrea, wake up! We've got the lexer to do.")
+        return 0
+    elif member == "Piergiuseppe" or status == True:
+        print("Great work, keep it up!")
+        return 1
     else:
-        print("Minore o uguale")
-    print("Fine Programma")
-    """) # Nota: textwrap pulisce tutto, quindi per il lexer 'x' sarà a colonna 0
+        return -1
 
-    print(f"Analizzo:\n{test_code}\n---")
+
+if workingOnTranspiler:
+    print("Starting coding session...")
+    
+    if groupSize == 2:
+        print("The team is complete.")
+        
+        for i in range(componentsToDevelop):
+            remaining = 4 - i
+            print(remaining)
+            
+    print("Session ended.")
+    """)
+
+    print(f"--- SOURCE CODE ---\n{test_code}\n-----------------------")
+    
+    lexer.lineno = 1
+
     result = parser.parse(test_code, lexer=lexer)
     
-    print("Albero AST generato:")
+    print("\n--- PARSER RESULT (AST) ---")
     if result:
-    # Passi direttamente tutta la lista 'result' a pprint
-        pprint.pprint(result) 
+        pprint.pprint(result)
+        print("\n Parsing completed successfully!")
     else:
-        print("Nessun risultato (Errore di sintassi).")
+        print("\n Error during parsing (or empty input).")
