@@ -55,9 +55,12 @@ class SemanticAnalyzer:
                 left_type = self.visit(left)
                 right_type = self.visit(right)
 
+                if left_type == 'any' or right_type == 'any':
+                    return 'any'
+
                 if (left_type == 'str' and right_type == 'int') or \
                     (left_type == 'int' and right_type == 'str'):
-                    raise Exception(f"Type mismatch: Cannot add {left_type} with {right_type}.")
+                    raise Exception(f"Semantic Error: type mismatch in sum. Cannot add {left_type} with {right_type}.")
                 return left_type
             
             # '-', '*', '/' are just used for arithmetics operations
@@ -69,11 +72,96 @@ class SemanticAnalyzer:
                     raise Exception(f"Semantic Error: '{op}' doesn't accept strings.")
                 return 'int'
             
-            # '>', '<', '==', 'and', 'or' end in this section
-            case BinOp(left, op, right):
-                self.visit(left)
-                self.visit(right)
+            # '>', '<', '>=', '<=', '==', '!=' end in this section
+            case BinOp(left, op, right) if op in ['>', '<', '>=', '<=', '==', '!=']:
+                left_type = self.visit(left)
+                right_type = self.visit(right)
+                
+                if left_type == 'any' or right_type == 'any':
+                    return 'bool'
+                
+                if left_type != right_type:
+                    raise Exception(f"Semantic Error: type mismatch in comparison. Cannot compare {left_type} with {right_type}.")
+                
+                if op in ['>', '<', '>=', '<='] and left_type not in ['int', 'str']:
+                    raise Exception(f"Semantic Error: Operator {op} not supported for type {left_type}")
+                
+                return 'bool'
+                
+            # 'and', 'or' end in this section
+            case BinOp(left, op, right) if op in ['and', 'or']:
+                left_type = self.visit(left)
+                right_type = self.visit(right)
+                
+                if left_type != 'bool' and left_type != 'any':
+                    raise Exception(f"Semantic Error: left side of '{op}' must be boolean, got {left_type}")
+                if right_type != 'bool' and right_type != 'any':
+                    raise Exception(f"Semantic Error: right side of '{op}' must be boolean, got {right_type}")
+                
                 return 'bool'
             
+            # 'not' for boolean values
+            case UnaryOp('not', expr):
+                self.visit(expr)
+                return 'bool'
+            
+            # '-' for negative numbers
+            case UnaryOp('-', expr):
+                expr_type = self.visit(expr)
+                if expr_type == 'str':
+                    raise Exception("Semantic Error: cannot use '-' on a string.")
+                return 'int'
+            
+            case PrintStat(value):
+                self.visit(value)
+
+            case ExprStat(expr):
+                self.visit(expr)
+            
+            case ReturnStat(value):
+                self.visit(value)
+
+            # IF statement without ELSE
+            case IfStat(condition, true_block, None):
+                self.visit(condition)
+                self.visit(true_block)
+
+            # IF statement with ELSE
+            case IfStat(condition, true_block, false_block):
+                self.visit(condition)
+                self.visit(true_block)
+                self.visit(false_block)
+
+            case ForStat(iterator, start, end, body):
+                self.define(iterator, 'int')
+
+                start_type = self.visit(start)
+                end_type = self.visit(end)
+
+                if start_type not in ['int', 'any'] or end_type not in ['int', 'any']:
+                    raise Exception("Semantic Error: FOR loop requires integers.")
+                
+                self.visit(body)
+
+            case FunctionDecl(name, params, body):
+                self.define(name, 'function')
+                self.enter_scope()    
+
+                for p in params:
+                    self.define(p, 'any')
+                try:
+                    self.visit(body)
+                finally:
+                    self.exit_scope()
+
+            case FunctionCall(name, args):
+                if not self.lookup(name):
+                    raise Exception(f"Semantic Error: '{name}' function is not defined")
+                for arg in args:
+                    self.visit(arg)
+                return 'any'
+
+            case _:
+                raise Exception(f"Unknown AST node: '{node}'")
 
 
