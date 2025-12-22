@@ -3,3 +3,5 @@ __pycache__/
 
 parsetab.py
 parser.out
+ast_output
+ast_output.png
