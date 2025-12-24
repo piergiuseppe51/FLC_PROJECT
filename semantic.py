@@ -10,15 +10,22 @@ class SemanticAnalyzer:
 
 # --------------Helper methods-------------
     def enter_scope(self):
+        """Appends a new scope dictionary { } to the stack"""
         self.symbol_table.append({})
     
     def exit_scope(self):
+        """Removes the current scope dictionary { } from the stack"""
         self.symbol_table.pop()
 
     def define(self, name, type_):
+        """Define a new variable or function to the current scope"""
         self.symbol_table[-1][name] = type_
 
     def lookup(self, name):
+        """
+        Searches for a variable starting from the current scope in reverse to the global scope [0].
+        - Returns the type if the variable is found, otherwise returns None
+        """
         for scope in reversed(self.symbol_table):
             if name in scope:
                 return scope[name]
@@ -27,6 +34,11 @@ class SemanticAnalyzer:
 # -----------------------------------------
 
     def visit(self, node):
+        """
+        Navigates through the AST nodes generate by the parser.
+        - Returns the type for the expressions: Number, String, Boolean, InputExpr, AssignStat, Var, BinOp, UnaryOp
+        - Returns None for the statements: PrintStat, ExprStat, ReturnStat, IfStat, ForStat, FunctionDecl
+        """
         match node:
 
             case list(statements):

@@ -8,37 +8,55 @@ from parser import (
 import textwrap
 
 class CodeGenerator:
+    """
+    Translates the AST into JavaScript code
+    """
+
     def __init__(self):
         self.indent_level = 0
-        # Stack di set per tracciare le variabili dichiarate in ogni scope.
-        # Iniziamo con lo scope globale.
+        # Stack of sets to track declared variables in nested scopes.
+        # Index 0 is the global scope
         self.scopes = [set()]
 
+# -------------------Helper Methods------------------
+
     def get_indent(self):
+        """Returns the indentation string based on the current level
+        - level 0 will have 0 spaces
+        - level 1 will have 4 spaces
+        - ...
+        - level n will have 4*n spaces
+        """
         return "    " * self.indent_level
 
     def enter_scope(self):
+        """Increases indent level and appends a new scope set"""
         self.indent_level += 1
         self.scopes.append(set())
 
     def exit_scope(self):
+        """Decreases indent level and pops the current scope set"""
         self.indent_level -= 1
         self.scopes.pop()
 
     def declare_var(self, name):
-        """Registra una variabile nello scope corrente."""
+        """Declare a new variable in the current scope"""
         self.scopes[-1].add(name)
 
     def is_var_declared(self, name):
-        """Controlla se la variabile esiste in qualsiasi scope attivo (locale o genitore)."""
+        """Checks if a variable is already defined starting from the current scope to the global scope.
+        - Returns True: if the variable already exists
+        - Returns False: if it's a new variable"""
         for scope in reversed(self.scopes):
             if name in scope:
                 return True
         return False
+# -------------------------------------------------------------
 
     def generate(self, node):
+        """Generates JavaScript code passing through the AST nodes"""
         match node:
-            # --- Gestione Liste di Statement (Programma o Blocchi) ---
+            # ---Statement Lists---
             case list(statements):
                 results = []
                 for stmt in statements:
@@ -47,12 +65,12 @@ class CodeGenerator:
                         results.append(res)
                 return "\n".join(results)
 
-            # --- Valori Primitivi ---
+            # ---Primitives---
             case Number(value):
                 return str(value)
             
             case String(value):
-                # Assicura che le stringhe abbiano doppi apici in JS
+                # String must have " " 
                 return f'"{value}"'
             
             case Boolean(value):
@@ -61,21 +79,21 @@ class CodeGenerator:
 
             case Var(name):
                 return name
-
-            # --- Operazioni ---
+            
+            # ---Operations---
             case BinOp(left, op, right):
                 js_left = self.generate(left)
                 js_right = self.generate(right)
                 
-                # Mappatura operatori Python -> JS
+                # Map Python operators to JS equivalents
                 op_map = {
                     'and': '&&',
                     'or': '||',
-                    '==': '===', # Strict equality
+                    '==': '===',
                     '!=': '!==',
                     'not': '!'
                 }
-                js_op = op_map.get(op, op) # Se non è nella map, usa l'originale (+, -, *, /)
+                js_op = op_map.get(op, op) # Keep the original op if op is not in op_man
                 return f"{js_left} {js_op} {js_right}"
 
             case UnaryOp(op, expr):
@@ -83,14 +101,13 @@ class CodeGenerator:
                 if op == 'not':
                     return f"!{js_expr}"
                 return f"{op}{js_expr}"
-
-            # --- Statement ---
+            
+            # ---Statements and Assignments---
             case AssignStat(name, value):
                 js_val = self.generate(value)
                 indent = self.get_indent()
                 
-                # Se la variabile esiste già, è una riassegnazione.
-                # Se è nuova, usiamo 'let'.
+                # If variable exists reassign it. If it's new declare it with 'let'
                 if self.is_var_declared(name):
                     return f"{indent}{name} = {js_val};"
                 else:
@@ -113,16 +130,14 @@ class CodeGenerator:
                 return f'{indent}{js_expr};'
 
             case InputExpr(prompt):
-                # 'input' in Python -> 'prompt' in Browser JS
-                # Nota: Node.js non ha prompt nativo sincrono, ma per JS generico si usa prompt()
                 return f'prompt("{prompt}")'
 
-            # --- Strutture di Controllo ---
+            # ---Control Flow---
             case IfStat(condition, true_block, false_block):
                 indent = self.get_indent()
                 js_cond = self.generate(condition)
                 
-                # Inizio blocco IF
+                # IF block
                 result = f"{indent}if ({js_cond}) {{\n"
                 
                 self.enter_scope()
@@ -131,10 +146,8 @@ class CodeGenerator:
                 
                 result += f"{indent}}}"
 
-                # Gestione ELSE / ELIF
+                # ELSE block (handles ELIF recursively nesting other IFStats)
                 if false_block:
-                    # In Python, elif è gestito dal parser come un IfStat annidato nel false_block
-                    # Qui generiamo un semplice "else { ... }"
                     result += " else {\n"
                     self.enter_scope()
                     result += self.generate(false_block) + "\n"
@@ -151,11 +164,9 @@ class CodeGenerator:
                 js_start = self.generate(start)
                 js_end = self.generate(end)
                 
-                # Iniziamo il loop e dichiariamo l'iteratore nel nuovo scope
                 self.enter_scope()
-                self.declare_var(iterator) # 'i' è visibile dentro il loop
+                self.declare_var(iterator)
                 
-                # Header del for
                 header = f"for (let {iterator} = {js_start}; {iterator} < {js_end}; {iterator}++)"
                 
                 result = f"{indent}{header} {{\n"
@@ -165,17 +176,16 @@ class CodeGenerator:
                 result += f"{indent}}}"
                 return result
 
-            # --- Funzioni ---
             case FunctionDecl(name, params, body):
                 indent = self.get_indent()
                 params_str = ", ".join(params)
                 
-                self.declare_var(name) # La funzione è visibile nello scope corrente
+                self.declare_var(name) # Function name is visible in current scope
                 
                 result = f"{indent}function {name}({params_str}) {{\n"
                 
                 self.enter_scope()
-                # I parametri sono variabili dichiarate nello scope della funzione
+                # Parameters are local variables inside the function
                 for p in params:
                     self.declare_var(p)
                     
@@ -185,6 +195,7 @@ class CodeGenerator:
                 result += f"{indent}}}"
                 return result
 
+            # ---Functions---
             case FunctionCall(name, args):
                 js_args = ", ".join([self.generate(arg) for arg in args])
                 return f"{name}({js_args})"
@@ -195,7 +206,7 @@ class CodeGenerator:
             case _:
                 raise Exception(f"Codegen Error: Unknown node '{node}'")
 
-# --- TEST ---
+# ---TEST---
 if __name__ == '__main__':
     
     # Codice Python di input 

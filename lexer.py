@@ -115,21 +115,34 @@ t_ignore_COMMENT = r'\#.*'
 
 # --------------Indent Lexer---------------
 class IndentLexer:
+    """
+    Wrapper for the standard PLY Lexer. It uses the standard PLY Lexer as a base component but it handles the spacing introducing
+    the INDENT and DEDENT.
+    """
     def __init__(self, lexer):
         self.lexer = lexer
         self.token_stream = None
 
     def input(self, data):
+        """
+        Inputs data to the lexer and initialize the filtering process
+        """
         self.lexer.input(data)
         self.token_stream = self.filter()
 
     def token(self):
+        """
+        Return the next token from the filtered token stream
+        """
         try:
             return next(self.token_stream)
         except StopIteration:
             return None
         
     def filter(self):
+        """
+        Iterates over the tokens and inserts INDENT or DEDENT tokens for the spacing or newlines handling
+        """
         tokens = iter(self.lexer.token, None)
 
         indent_stack = [0]
@@ -195,8 +208,10 @@ raw_lexer = lex.lex()
 lexer = IndentLexer(raw_lexer)
 
 # --------Just for testing purposes--------
-# Helper function to compute the column of each token
 def find_column(input_text, token):
+    """
+    Helper function that computes the column of each token
+    """
     line_start = input_text.rfind('\n', 0, token.lexpos) + 1
     return (token.lexpos - line_start) + 1
 
