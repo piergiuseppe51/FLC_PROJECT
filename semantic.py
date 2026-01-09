@@ -9,6 +9,7 @@ class SemanticAnalyzer:
         self.symbol_table = [{}]
 
 # --------------Helper methods-------------
+
     def enter_scope(self):
         """Appends a new scope dictionary { } to the stack"""
         self.symbol_table.append({})
@@ -30,6 +31,19 @@ class SemanticAnalyzer:
             if name in scope:
                 return scope[name]
         return None
+    
+    def update_function_return_type(self, name, ret_type):
+        """
+        Updates the return type of an already declared function.
+        During the declaration of the function the return type is set to 'any'.
+        After the visit of the body, it is possible to update the real return type.
+        """
+        for scope in reversed(self.symbol_table):
+            if name in scope:
+                entry = scope[name]
+                if isinstance(entry, dict) and entry.get('tag') == 'function':
+                    entry['ret_type'] = ret_type
+                    return
 
 # -----------------------------------------
 
@@ -57,10 +71,14 @@ class SemanticAnalyzer:
                 return value_type
             
             case Var(name):
-                var_type = self.lookup(name)
-                if var_type is None:
+                val = self.lookup(name)
+                if val is None:
                     raise Exception(f"Semantic Error: variable '{name}' is not defined.")
-                return var_type
+                
+                if isinstance(val, dict) and val.get('tag') == 'function':  # if val is a dictionary it means it is a function used as variable
+                    return 'function'
+
+                return val
             
             # '+' can handle arithmetic sums and string concatenation
             case BinOp(left, '+', right):
@@ -75,17 +93,42 @@ class SemanticAnalyzer:
                     raise Exception(f"Semantic Error: type mismatch in sum. Cannot add {left_type} with {right_type}.")
                 return left_type
             
-            # '-', '*', '/' are just used for arithmetics operations
-            case BinOp(left, op, right) if op in ['-', '*', '/']:
+            case BinOp(left, '*', right):
                 left_type = self.visit(left)
                 right_type = self.visit(right)
 
+                if left_type == 'any' or right_type == 'any':
+                    return 'any'
+                
+                if left_type == 'int' and right_type == 'int':
+                    return 'int'
+                
+                if (left_type == 'str' and right_type == 'int') or (left_type == 'int' and right_type == 'str'):
+                    return 'str'
+                
+                raise Exception(f"Semantic Error: type mismatch in multiplication. Cannot multiply {left_type} with {right_type}.")
+            
+            # '-', '*', '/' are just used for arithmetics operations
+            case BinOp(left, op, right) if op in ['-', '/']:
+                left_type = self.visit(left)
+                right_type = self.visit(right)
+
+                if left_type == 'any' or right_type == 'any':
+                    return 'any'
+
                 if left_type == 'str' or right_type == 'str':
                     raise Exception(f"Semantic Error: '{op}' doesn't accept strings.")
+                
                 return 'int'
             
-            # '>', '<', '>=', '<=', '==', '!=' end in this section
-            case BinOp(left, op, right) if op in ['>', '<', '>=', '<=', '==', '!=']:
+            case BinOp(left, op, right) if op in ['==', '!=']:
+                left_type = self.visit(left)
+                right_type = self.visit(right)
+                # No type checking needed because we can compare different types and it return False -> 1 == '1' return False.
+                return 'bool'   
+            
+            # '>', '<', '>=', '<=' end in this section
+            case BinOp(left, op, right) if op in ['>', '<', '>=', '<=']:
                 left_type = self.visit(left)
                 right_type = self.visit(right)
                 
@@ -95,22 +138,17 @@ class SemanticAnalyzer:
                 if left_type != right_type:
                     raise Exception(f"Semantic Error: type mismatch in comparison. Cannot compare {left_type} with {right_type}.")
                 
-                if op in ['>', '<', '>=', '<='] and left_type not in ['int', 'str']:
-                    raise Exception(f"Semantic Error: Operator {op} not supported for type {left_type}")
-                
                 return 'bool'
                 
             # 'and', 'or' end in this section
             case BinOp(left, op, right) if op in ['and', 'or']:
                 left_type = self.visit(left)
                 right_type = self.visit(right)
+
+                if left_type == right_type:
+                    return left_type
                 
-                if left_type != 'bool' and left_type != 'any':
-                    raise Exception(f"Semantic Error: left side of '{op}' must be boolean, got {left_type}")
-                if right_type != 'bool' and right_type != 'any':
-                    raise Exception(f"Semantic Error: right side of '{op}' must be boolean, got {right_type}")
-                
-                return 'bool'
+                return 'any'
             
             # 'not' for boolean values
             case UnaryOp('not', expr):
@@ -131,7 +169,12 @@ class SemanticAnalyzer:
                 self.visit(expr)
             
             case ReturnStat(value):
-                self.visit(value)
+                if len(self.symbol_table) <= 1:
+                    raise Exception("Semantic Error: 'return' statement outside function")
+                
+                if value is not None:
+                    return self.visit(value)
+                return 'any'
 
             # IF statement without ELSE
             case IfStat(condition, true_block, None):
@@ -156,22 +199,50 @@ class SemanticAnalyzer:
                 self.visit(body)
 
             case FunctionDecl(name, params, body):
-                self.define(name, 'function')
-                self.enter_scope()    
+                func_entry = {
+                    'tag': 'function',
+                    'params': params,
+                    'ret_type': 'any'   # if this is not modified it means that we didn't find any other type
+                }
+                self.define(name, func_entry)
+
+                self.enter_scope()
 
                 for p in params:
-                    self.define(p, 'any')
+                    self.define(p, 'any')   # because we don't infer input types of params
+
+                inferred_type = 'any'
+
                 try:
-                    self.visit(body)
+                    for stmt in body:
+                        stmt_type = self.visit(stmt)
+
+                        if isinstance(stmt, ReturnStat):
+                            inferred_type = stmt_type   # we always take the last returned type. We overwrite eventual multiple subsequent returns
                 finally:
                     self.exit_scope()
 
+                self.update_function_return_type(name, inferred_type)
+
             case FunctionCall(name, args):
-                if not self.lookup(name):
-                    raise Exception(f"Semantic Error: '{name}' function is not defined")
+                func_entry = self.lookup(name)
+
+                if not func_entry:
+                    raise Exception(f"Semantic Error: function '{name}' is not defined.")
+                
+                if not isinstance(func_entry, dict) or func_entry.get('tag') != 'function':
+                    raise Exception(f"Semantic Error: '{name}' is not a function")
+                
+                param_count = len(func_entry['params'])
+                arg_count = len(args)
+
+                if param_count != arg_count:
+                    raise Exception(f"Semantic Error: Function '{name}' expects {param_count} arguments, but got {arg_count}.")
+                
                 for arg in args:
                     self.visit(arg)
-                return 'any'
+                
+                return func_entry['ret_type']
 
             case _:
                 raise Exception(f"Unknown AST node: '{node}'")
