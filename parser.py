@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Any
 import pprint
 
+errors = []
+
 # --------------Dataclass definiment---------------
 Expr = Any
 
@@ -247,13 +249,25 @@ def p_empty(p):
 
 def p_error(p):
     if p:
-        print(f"Syntax error for token '{p.value}' (line {p.lineno})")
+        error_msg = f"Syntax error for token '{p.value}' (line {p.lineno})"
+        print(error_msg)
+        errors.append(error_msg)
     else:
-        print("Syntax error at the end of the file")
+        error_msg = "Syntax error at the end of the file"
+        print(error_msg)
+        errors.append(error_msg)
 
 # -----------------------------------------
 
-parser = yacc.yacc()
+# ---FIX FOR PYINSTALLER (.EXE PURPOSES)---
+class SilentLogger:
+    def warning(self, msg, *args, **kwargs): pass
+    def error(self, msg, *args, **kwargs): pass
+    def info(self, msg, *args, **kwargs): pass
+    def debug(self, msg, *args, **kwargs): pass
+
+# PLY writes on this silentlogger which does nothing. This prevents crashes due to the absence of console while using the gui.
+parser = yacc.yacc(write_tables=False, debug=False, errorlog=SilentLogger())
 
 # --------Just for testing purposes--------
 if __name__ == '__main__':

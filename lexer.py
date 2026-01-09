@@ -1,5 +1,7 @@
 import ply.lex as lex
 
+errors = []
+
 # ------------Token declaration------------
 reserved = {
   # 'key': 'value'
@@ -104,7 +106,9 @@ def t_newline(t):
 
 # Identify unrecognised characters and skip them
 def t_error(t):
-    print(f"Illegal character '{t.value[0]}' in line {t.lexer.lineno}")
+    error_msg = f"Illegal character '{t.value[0]}' in line {t.lexer.lineno}"
+    print(error_msg)
+    errors.append(error_msg)
     t.lexer.skip(1)
 
 # Characters to ignore
@@ -161,14 +165,13 @@ class IndentLexer:
                 
                 indent_level = 0
 
-                # Qui c'è il problema del tab. Dobbiamo decidere se gestire anche i tab e se sostituirli con 4 spazi.
                 while self.lexer.lexpos < len(self.lexer.lexdata) and self.lexer.lexdata[self.lexer.lexpos] == ' ':
                     indent_level += 1
                     self.lexer.lexpos += 1
                 
                 current_level = indent_stack[-1]
 
-                if indent_level > indent_stack[-1]:
+                if indent_level > current_level:
                     indent_stack.append(indent_level)
                     tok = lex.LexToken()
                     tok.type = 'INDENT'
