@@ -1,6 +1,16 @@
 __pycache__/
 *.pyc
 
+# ---PyInstaller---
+build/
+dist/
+*.spec
+
+# ---IDE---
+.vscode/
+.idea/
+
+# ---PLY and Graphviz---
 parsetab.py
 parser.out
 ast_output
