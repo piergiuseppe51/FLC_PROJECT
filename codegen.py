@@ -51,6 +51,25 @@ class CodeGenerator:
             if name in scope:
                 return True
         return False
+    
+    def add_warning(self, code, message):
+        """Adds a comment to the generated JS code to make it quick and easy for humans to identify parts of the code that exhibit ambiguous behaviour following translation from Python to JavaScript."""
+        if message:
+            return f"{code} /* WARNING: {message} */"
+        return code
+    
+    def extract_warning(self, code):
+        """
+        Splits the code in clean code and warning comment.
+        Returns: (clean_code, warning_suffix)
+        """
+
+        if "/* WARNING:" in code:
+            parts = code.split("/* WARNING:", 1)
+            clean_code = parts[0].strip()
+            warning_suffix = " /* WARNING:" + parts[1]
+            return clean_code, warning_suffix
+        return code, ""
 # -------------------------------------------------------------
 
     def generate(self, node):
@@ -84,6 +103,9 @@ class CodeGenerator:
             case BinOp(left, op, right):
                 js_left = self.generate(left)
                 js_right = self.generate(right)
+
+                if op == '*' and isinstance(left, String):
+                    return f"{js_left}.repeat({js_right})"
                 
                 # Map Python operators to JS equivalents
                 op_map = {
@@ -94,12 +116,25 @@ class CodeGenerator:
                     'not': '!'
                 }
                 js_op = op_map.get(op, op) # Keep the original op if op is not in op_man
-                return f"{js_left} {js_op} {js_right}"
+                result =  f"{js_left} {js_op} {js_right}"
+
+                warning = None
+
+                if op == '*':
+                    warning = "If multiplying a string var, use .repeat()"
+
+                elif op == '/':
+                    warning = "JS division is always a float. Use Math.floor() for integer division"
+                
+                elif op in ['and', 'or']:
+                    warning = "Check truthiness. Empty lists/objects are true in JS, false in Python"
+                
+                return self.add_warning(result, warning)
 
             case UnaryOp(op, expr):
                 js_expr = self.generate(expr)
                 if op == 'not':
-                    return f"!{js_expr}"
+                    return self.add_warning(f"!{js_expr}", "Check truthiness. Negation of an empty list/object is false in JS, true in Python")
                 return f"{op}{js_expr}"
             
             # ---Statements and Assignments---
@@ -130,15 +165,20 @@ class CodeGenerator:
                 return f'{indent}{js_expr};'
 
             case InputExpr(prompt):
-                return f'prompt("{prompt}")'
+                code =  f'prompt("{prompt}")'
+
+                warning = "prompt can be used only in Browser environment. If using Node.js switch to prompt-sync or handle this case differently"
+
+                return self.add_warning(code, warning)
 
             # ---Control Flow---
             case IfStat(condition, true_block, false_block):
                 indent = self.get_indent()
-                js_cond = self.generate(condition)
-                
+                raw_cond = self.generate(condition)
+                js_cond, warning_suffix = self.extract_warning(raw_cond)
+
                 # IF block
-                result = f"{indent}if ({js_cond}) {{\n"
+                result = f"{indent}if ({js_cond}) {{{warning_suffix}\n"
                 
                 self.enter_scope()
                 result += self.generate(true_block) + "\n"
