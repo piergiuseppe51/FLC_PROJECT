@@ -249,7 +249,7 @@ def p_empty(p):
 
 def p_error(p):
     if p:
-        error_msg = f"Syntax error for token '{p.value}' (line {p.lineno})"
+        error_msg = f"Syntax error for token {repr(p.value)} (line {p.lineno})"
         print(error_msg)
         errors.append(error_msg)
     else:

@@ -27,7 +27,7 @@ reserved = {
 }
 
 tokens = [
-    # Tokens names for operators without reserved keywords
+    # Tokens name for operators without reserved keywords
     'ID',
     'NUMBER',
     'STRING',
@@ -53,8 +53,8 @@ tokens = [
 
 # -----------------------------------------
 
-# ---------------Simple Rules--------------
-# Prefix t_ + Token_name = r'Regex'
+# ---------------Simple rules--------------
+# prefix t_ + token_name = r'regex'
 
 t_PLUS = r'\+'
 t_MINUS = r'-'
@@ -76,7 +76,7 @@ t_COMMA = r','
 
 # -----------------------------------------
 
-# --------------Complex Rules--------------
+# --------------Complex rules--------------
 # Prefix t_ + Token_name(token): r'Regex' and operations
 
 # Identify variable names

@@ -121,20 +121,15 @@ class CodeGenerator:
                 warning = None
 
                 if op == '*':
-                    warning = "If multiplying a string var, use .repeat()"
+                    warning = "If multiplying a string by an int, use .repeat()"
 
                 elif op == '/':
                     warning = "JS division is always a float. Use Math.floor() for integer division"
-                
-                elif op in ['and', 'or']:
-                    warning = "Check truthiness. Empty lists/objects are true in JS, false in Python"
                 
                 return self.add_warning(result, warning)
 
             case UnaryOp(op, expr):
                 js_expr = self.generate(expr)
-                if op == 'not':
-                    return self.add_warning(f"!{js_expr}", "Check truthiness. Negation of an empty list/object is false in JS, true in Python")
                 return f"{op}{js_expr}"
             
             # ---Statements and Assignments---
@@ -167,11 +162,11 @@ class CodeGenerator:
             case InputExpr(prompt):
                 code =  f'prompt("{prompt}")'
 
-                warning = "prompt can be used only in Browser environment. If using Node.js switch to prompt-sync or handle this case differently"
+                warning = "prompt() can be used only in Browser environment. If using Node.js switch to prompt-sync or handle this case differently"
 
                 return self.add_warning(code, warning)
 
-            # ---Control Flow---
+            # ---Control flow---
             case IfStat(condition, true_block, false_block):
                 indent = self.get_indent()
                 raw_cond = self.generate(condition)
@@ -248,35 +243,37 @@ class CodeGenerator:
 
 # ---TEST---
 if __name__ == '__main__':
-    
-    # Codice Python di input 
+
     test_code = textwrap.dedent("""
     groupSize = 2
-    groupMember1 = "Andrea"
-    workingOnTranspiler = True
-    componentsToDevelop = 4
+groupMember1 = "Andrea"
+groupMember2 = 'Piergiuseppe'  # Test strings defined with single quotes
+workingOnTranspiler = True
+componentsToDevelop = 4
+isWorkingHard = False
 
-    def encourage_team(member, status):
-        if member == "Andrea" and not status:
-            print("Wake up!")
-            return 0
-        elif status == True:
-            print("Great work!")
-            return 1
-        else:
-            return -1
+def encourage_team(member, status):
+    if member == "Andrea" and not status:
+        print("Andrea, wake up! We've got the lexer to do.")
+        return 0
+    elif member == "Piergiuseppe" or status == True:
+        print("Great work, keep it up!")
+        return 1
+    else:
+        return -1
 
-    if workingOnTranspiler:
-        print("Starting coding session...")
+
+if workingOnTranspiler:
+    print("Starting coding session...")
+    
+    if groupSize == 2:
+        print("The team is complete.")
         
-        if groupSize == 2:
-            print("Team complete.")
+        for i in range(componentsToDevelop):
+            remaining = 4 - i
+            print(remaining)
             
-            for i in range(componentsToDevelop):
-                remaining = 4 - i
-                print(remaining)
-                
-        print("Session ended.")
+    print("Session ended.")
     """)
 
     print(f"--- INPUT PYTHON ---\n{test_code}\n")
