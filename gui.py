@@ -7,20 +7,20 @@ import subprocess
 import tempfile
 import shutil
 
-# ---DEPENDENCIES---
+# Dependencies
 try:
     from PIL import Image, ImageTk
 except ImportError:
     pass
 
-# ---COMPILER MODULES---
+# Compiler modules
 try:
     import lexer as lexer_mod 
     import parser as parser_mod 
     from semantic import SemanticAnalyzer
     from codegen import CodeGenerator
-except ImportError as e:
-    # Fallback to prevent IDE crash during GUI testing if modules are missing
+except ImportError:
+    # Fallback to prevent IDE crash if modules are missing
     lexer_mod = None
     pass
 
@@ -29,32 +29,22 @@ try:
 except ImportError:
     ASTVisualizer = None
 
-# Global variable to store the path of the currently generated AST image
+# Global state for AST image path
 current_ast_image_path = None
 
 
 def resource_path(relative_path):
-    """
-    Get absolute path to resource, works for dev and for PyInstaller.
-    """
+    """Returns absolute path to resource. Works for dev and PyInstaller."""
     try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
         base_path = sys._MEIPASS
     except Exception:
-        # IN DEV: Use the directory where this script is located
         base_path = os.path.dirname(os.path.abspath(__file__))
 
     return os.path.join(base_path, relative_path)
 
-# ==========================================
-# SYNTAX HIGHLIGHTER CLASS
-# ==========================================
+# -----------------------------------------
 
 class SyntaxHighlighter:
-    """
-    Handles real-time syntax highlighting for Python and JavaScript code.
-    Based on Regex matching and Tkinter tags.
-    """
     def __init__(self, text_widget, lang='python'):
         self.text_widget = text_widget
         self.lang = lang
@@ -72,9 +62,9 @@ class SyntaxHighlighter:
             self.text_widget.tag_config(tag, foreground=color)
 
     def highlight(self, event=None):
-        """Applies highlighting rules to the entire text content."""
+        """Applies highlighting rules to the entire text content"""
         content = self.text_widget.get("1.0", tk.END)
-        # Clear old tags
+        
         for tag in self.tags:
             self.text_widget.tag_remove(tag, "1.0", tk.END)
         
@@ -84,7 +74,7 @@ class SyntaxHighlighter:
             self._highlight_js(content)
 
     def _apply_regex(self, pattern, tag, content):
-        """Helper to apply a specific tag to all regex matches."""
+        """Helper to apply a specific tag to all regex matches"""
         for match in re.finditer(pattern, content):
             start = f"1.0+{match.start()}c"
             end = f"1.0+{match.end()}c"
@@ -93,10 +83,13 @@ class SyntaxHighlighter:
     def _highlight_python(self, content):
         keywords = r'\b(def|return|if|else|elif|while|for|in|and|or|not|class|try|except|import|from)\b'
         self._apply_regex(keywords, 'keyword', content)
+        
         builtins = r'\b(print|range|input|len|str|int)\b'
         self._apply_regex(builtins, 'builtin', content)
+        
         bools = r'\b(True|False|None)\b'
         self._apply_regex(bools, 'bool', content)
+        
         self._apply_regex(r'\b\d+\b', 'number', content)
         self._apply_regex(r'(".*?"|\'.*?\')', 'string', content)
         self._apply_regex(r'#.*', 'comment', content)
@@ -104,6 +97,7 @@ class SyntaxHighlighter:
     def _highlight_js(self, content):
         keywords = r'\b(function|return|if|else|var|let|const|for|while|switch|case|break)\b'
         self._apply_regex(keywords, 'keyword', content)
+        
         self._apply_regex(r'\b(console|log)\b', 'builtin', content)
         self._apply_regex(r'\b(true|false|null|undefined)\b', 'bool', content)
         self._apply_regex(r'\b\d+\b', 'number', content)
@@ -112,16 +106,12 @@ class SyntaxHighlighter:
         self._apply_regex(r'/\* WARNING:.*?\*/', 'warning', content)
         self._apply_regex(r'/\*(?!\s*WARNING:).*?\*/', 'comment', content)
 
-# ==========================================
-# CORE LOGIC (Callbacks)
-# ==========================================
+# --------------Core logic-----------------
 
 def compile_source():
     """
-    Main compilation workflow:
-    1. Lexing & Parsing
-    2. Semantic Analysis
-    3. Code Generation (Python -> JS)
+    Orchestrates the compilation pipeline:
+    Lexing -> Parsing -> Semantic Analysis -> Code Generation.
     """
     source_code = txt_input.get("1.0", tk.END).strip()
     if source_code: source_code += "\n"
@@ -141,7 +131,6 @@ def compile_source():
         if lexer_mod and hasattr(lexer_mod, 'lexer'):
             lexer_mod.lexer.lineno = 1
         
-        # Safety check for imports
         if not parser_mod: raise Exception("Compiler modules not found.")
 
         ast = parser_mod.parser.parse(source_code, lexer=lexer_mod.lexer)
@@ -161,30 +150,27 @@ def compile_source():
 
             raise Exception(error_text)
 
-        # Semantic
+        # Semantic analysis
         semantic = SemanticAnalyzer()
         semantic.visit(ast)
         
-        # CodeGen
+        # Code generation
         codegen = CodeGenerator() 
         js_code = codegen.generate(ast)
         
-        # Output
+        # Output result
         txt_output.insert(tk.END, js_code)
         highlighter_js.highlight()
         status_label.config(text="Compilation successful ✅", fg="#27ae60")
-
-        # Activate RUN button
         btn_run.config(state=tk.NORMAL, bg="#34C540") 
 
     except Exception as e:
         txt_output.insert(tk.END, f"/* ERROR */\n\n{str(e)}")
         status_label.config(text="Error detected ❌", fg="#c0392b")
-        # Deactivate RUN button
         btn_run.config(state=tk.DISABLED, bg="#bdc3c7")
 
 def open_file():
-    """Opens a file dialog to load Python code into the input box."""
+    """Opens file dialog to load Python code"""
     filepath = filedialog.askopenfilename(filetypes=[("Python Files", "*.py"), ("Text Files", "*.txt")])
     if filepath:
         with open(filepath, "r", encoding="utf-8") as f:
@@ -195,7 +181,7 @@ def open_file():
         status_label.config(text=f"Loaded: {os.path.basename(filepath)}")
 
 def copy_js():
-    """Copies the content of the Output box to the system clipboard."""
+    """Copies output content to system clipboard"""
     js_code = txt_output.get("1.0", tk.END).strip()
     if js_code:
         root.clipboard_clear()
@@ -203,7 +189,7 @@ def copy_js():
         messagebox.showinfo("Info", "JS Code copied to clipboard!")
 
 def export_js():
-    """Saves the generated JavaScript code to a file."""
+    """Exports generated JavaScript to a file"""
     js_code = txt_output.get("1.0", tk.END).strip()
     if js_code:
         filepath = filedialog.asksaveasfilename(defaultextension=".js", filetypes=[("JS Files", "*.js")])
@@ -213,28 +199,24 @@ def export_js():
 
 def run_js():
     """
-    Executes the generated JS code using Node.js (must be installed).
-    Captures stdout/stderr and displays it in a new window.
+    Executes generated JS via Node.js subprocess.
+    Captures stdout/stderr in a new window.
     """
-    # Get JS code
     js_code = txt_output.get("1.0", tk.END).strip()
     if not js_code: return
 
-    # Save to temp file
     temp_file = "temp_run.js"
     with open(temp_file, "w", encoding="utf-8") as f:
         f.write(js_code)
 
     try:
-        # Run with Node.js
         result = subprocess.run(
             ["node", temp_file], 
             capture_output=True, 
             text=True, 
-            timeout=5,     # 5s timeout to prevent infinite loops
-            shell=True     # Required on Windows
+            timeout=5,
+            shell=True
         )
-        
         output = result.stdout + result.stderr
         
     except FileNotFoundError:
@@ -247,7 +229,7 @@ def run_js():
         if os.path.exists(temp_file):
             os.remove(temp_file)
 
-    # Show output window
+    # Show terminal output
     top = tk.Toplevel(root)
     top.title("Terminal Output")
     top.geometry("600x400")
@@ -263,18 +245,16 @@ def run_js():
 
 def show_ast():
     """
-    Generates and displays the AST Graph using Graphviz.
-    Saves the image in a temp folder and enables the Save button.
+    Generates and displays AST using Graphviz.
+    Saves image to temp folder.
     """
     global current_ast_image_path
     
     code = txt_input.get("1.0", tk.END).strip() + "\n"
-    
     if len(code) <= 1:
         messagebox.showwarning("Warning", "Python code is empty!")
         return
 
-    # Reset lexer
     if lexer_mod: lexer_mod.lexer.lineno = 1
     
     try:
@@ -284,13 +264,10 @@ def show_ast():
         return
 
     if ast is None:
-        messagebox.showerror("Syntax Error", 
-                             "The parser returned None.\n"
-                             "Probable syntax error in Python code.\n"
-                             "Check for unclosed parentheses or blocks.")
+        messagebox.showerror("Syntax Error", "Parser returned None. Check syntax.")
         return
 
-    # Generate Graph
+    # Generate graph
     if ASTVisualizer:
         viz = ASTVisualizer()
         
@@ -301,25 +278,22 @@ def show_ast():
 
         if output_path and os.path.exists(output_path):
             current_ast_image_path = output_path
-            
-            # Enable Save Button
             btn_save_ast.config(state=tk.NORMAL, cursor="hand2")
             
             try:
-                if os.name == 'nt': # Windows
+                if os.name == 'nt':
                     os.startfile(output_path)
-                else: # Mac / Linux
-                    import subprocess
+                else:
                     subprocess.call(('open', output_path))
             except Exception as e:
                 messagebox.showerror("Error", f"Cannot open image:\n{e}")
         else:
-            messagebox.showerror("Graphviz Error", "Cannot create PNG file.\nIs Graphviz installed and added to PATH?")
+            messagebox.showerror("Graphviz Error", "Cannot create PNG. Check Graphviz installation.")
     else:
         messagebox.showerror("Error", "Module ast_visualizer not found.")
 
 def save_ast():
-    """Saves the currently generated AST image to a user-defined location."""
+    """Saves the current AST image to disk"""
     global current_ast_image_path
     
     if not current_ast_image_path or not os.path.exists(current_ast_image_path):
@@ -349,9 +323,10 @@ def clear_output():
     txt_output.delete("1.0", tk.END)
     btn_run.config(state=tk.DISABLED, bg="#bdc3c7")
 
-# ==========================================
-# GUI SETUP & LAYOUT
-# ==========================================
+# -----------------------------------------
+# GUI Setup
+# -----------------------------------------
+
 BG_COLOR = "#f0f2f5"
 CARD_BG = "#ffffff"
 BTN_BLUE = "#1976D2"
@@ -363,14 +338,13 @@ root.title("Py2JS Transpiler")
 root.geometry("1050x720")
 root.configure(bg=BG_COLOR)
 
-# ---WINDOW ICON---
+# --- Assets loading ---
 try:
     icon_path = resource_path("imgs/app_icon.ico")
     root.iconbitmap(icon_path)
 except Exception:
     pass
 
-# ---LOAD HEADER ICONS---
 try:
     path_py = resource_path("imgs/python_icon.png")
     py_img_raw = Image.open(path_py).resize((35, 35), Image.Resampling.LANCZOS)
@@ -384,44 +358,40 @@ except Exception as e:
     py_icon = None
     js_icon = None
 
+try:
+    trash_path = resource_path("imgs/trash.png")
+    pil_img = Image.open(trash_path).resize((20, 20), Image.Resampling.LANCZOS)
+    icon_trash = ImageTk.PhotoImage(pil_img)
+except Exception:
+    icon_trash = None
 
-# ---HEADER LAYOUT (3 Columns)---
+
+# --- Header ---
 header_frame = tk.Frame(root, bg=BG_COLOR)
 header_frame.pack(fill=tk.X, pady=(20, 10), padx=20)
 header_frame.columnconfigure(0, weight=1)
 header_frame.columnconfigure(1, weight=0)
 header_frame.columnconfigure(2, weight=1)
 
-# 1. Python Side (Left)
+# Python label
 h_py_frame = tk.Frame(header_frame, bg=BG_COLOR)
 h_py_frame.grid(row=0, column=0) 
-
 if py_icon:
     tk.Label(h_py_frame, image=py_icon, bg=BG_COLOR).pack(side=tk.LEFT, padx=10)
 tk.Label(h_py_frame, text="Python", font=("Segoe UI", 18, "bold"), bg=BG_COLOR, fg="#333").pack(side=tk.LEFT)
 
-# 2. Arrow (Center)
+# Center arrow
 tk.Label(header_frame, text="➔", font=("Arial", 24), bg=BG_COLOR, fg="#bdc3c7").grid(row=0, column=1, padx=(32, 0))
 
-# 3. JavaScript Side (Right)
+# JS label
 h_js_frame = tk.Frame(header_frame, bg=BG_COLOR)
 h_js_frame.grid(row=0, column=2)
-
 tk.Label(h_js_frame, text="JavaScript", font=("Segoe UI", 18, "bold"), bg=BG_COLOR, fg="#333").pack(side=tk.LEFT)
 if js_icon:
     tk.Label(h_js_frame, image=js_icon, bg=BG_COLOR).pack(side=tk.LEFT, padx=10)
 
 
-# ---TRASH ICON---
-try:
-    trash_path = resource_path("imgs/trash.png")
-    pil_img = Image.open(trash_path).resize((20, 20), Image.Resampling.LANCZOS)
-    icon_trash = ImageTk.PhotoImage(pil_img)
-except Exception as e:
-    icon_trash = None
-
-
-# ---MAIN CONTAINER---
+# --- Main container ---
 main_container = tk.Frame(root, bg=BG_COLOR)
 main_container.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
 
@@ -429,7 +399,7 @@ main_container.columnconfigure(0, weight=1)
 main_container.columnconfigure(1, weight=1)
 main_container.rowconfigure(1, weight=1) 
 
-# ---LEFT SIDE (PYTHON INPUT)---
+# Left side (Python input)
 if icon_trash:
     btn_clean_py = tk.Button(main_container, image=icon_trash, command=clear_input, 
                              bg=BG_COLOR, activebackground=BG_COLOR, 
@@ -445,8 +415,7 @@ frame_py.grid(row=1, column=0, sticky="nsew", padx=(0, 15))
 txt_input = scrolledtext.ScrolledText(frame_py, font=FONT_CODE, bg=CARD_BG, fg="#333", relief=tk.FLAT, undo=True)
 txt_input.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-
-# ---RIGHT SIDE (JS OUTPUT)---
+# Right side (JS output)
 if icon_trash:
     btn_clean_js = tk.Button(main_container, image=icon_trash, command=clear_output, 
                              bg=BG_COLOR, activebackground=BG_COLOR, 
@@ -462,23 +431,22 @@ frame_js.grid(row=1, column=1, sticky="nsew", padx=(15, 0))
 txt_output = scrolledtext.ScrolledText(frame_js, font=FONT_CODE, bg=CARD_BG, fg="#333", relief=tk.FLAT)
 txt_output.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-# Initialize Highlighters
+# Init highlighters
 highlighter_py = SyntaxHighlighter(txt_input, 'python')
 highlighter_js = SyntaxHighlighter(txt_output, 'js')
 txt_input.bind('<KeyRelease>', highlighter_py.highlight)
 
 
-# ---BOTTOM BAR (CONTROLS)---
+# --- Bottom bar ---
 bottom_bar = tk.Frame(root, bg=BG_COLOR)
 bottom_bar.pack(fill=tk.X, pady=20, padx=20)
 
-# Left Group (Open, AST)
+# Left group
 f_left = tk.Frame(bottom_bar, bg=BG_COLOR)
 f_left.pack(side=tk.LEFT)
 
 tk.Button(f_left, text="📂 Open File", command=open_file, bg="white", relief=tk.GROOVE).pack(side=tk.LEFT, padx=5)
 
-# AST Buttons (Tree + Disk)
 btn_show_ast = tk.Button(f_left, text="🌳 Show AST", command=show_ast, 
                          bg="white", relief=tk.GROOVE, cursor="hand2")
 btn_show_ast.pack(side=tk.LEFT, padx=(5, 0))
@@ -488,11 +456,11 @@ btn_save_ast = tk.Button(f_left, text="💾", command=save_ast,
                          state=tk.DISABLED, cursor="arrow")
 btn_save_ast.pack(side=tk.LEFT, padx=(0, 5))
 
-# Center Button (Convert)
+# Center button
 tk.Button(bottom_bar, text="Convert", command=compile_source, bg=BTN_BLUE, fg="white", 
           font=("Segoe UI", 12, "bold"), width=15, relief=tk.FLAT, cursor="hand2").pack(side=tk.LEFT, expand=True, padx=(15, 0))
 
-# Right Group (Run, Copy, Export)
+# Right group
 f_right = tk.Frame(bottom_bar, bg=BG_COLOR)
 f_right.pack(side=tk.RIGHT)
 
@@ -505,7 +473,7 @@ btn_run.pack(side=tk.LEFT, padx=(0, 10))
 tk.Button(f_right, text="📋 Copy", command=copy_js, bg="white", relief=tk.GROOVE).pack(side=tk.LEFT, padx=5)
 tk.Button(f_right, text="↗ Export", command=export_js, bg="white", relief=tk.GROOVE).pack(side=tk.LEFT)
 
-# Status Bar
+# Status bar
 status_label = tk.Label(root, text="Ready", font=("Arial", 9), bg=BG_COLOR, fg="#777", anchor="e")
 status_label.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 5))
 
