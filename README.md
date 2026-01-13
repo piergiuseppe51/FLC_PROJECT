@@ -2,6 +2,8 @@
 
 **Py2JS** is a comprehensive educational compiler that translates Python source code into modern JavaScript.
 Written entirely in Python, it features a full **Graphical User Interface (GUI)**, an **Abstract Syntax Tree (AST) Visualizer**, and a complete transpilation pipeline (Lexer → Parser → Semantic Analysis → Code Generation).
+Project developed for the Formal Languages and Compilers course at Politecnio di Bari. 
+Group name: Nabuk
 
 ---
 
