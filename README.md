@@ -82,7 +82,7 @@ This project includes **PyInstaller** support to create a standalone executable 
 Run the following command in your terminal:
 
 ```bash
-pyinstaller --noconsole --onefile --icon=imgs/app_icon.ico --add-data "imgs;imgs" gui.py
+pyinstaller --noconsole --onefile --name="Py2JS" --icon="imgs/app_icon.ico" --add-data "imgs;imgs" gui.py
 ```
 
 ---
