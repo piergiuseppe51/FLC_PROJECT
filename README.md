@@ -55,17 +55,16 @@ Py2JS supports a specific subset of the Python language mapped to JavaScript:
 
 ### Prerequisites
 To run all features of Py2JS, you need:
-1.  **Python 3.8+**
+1.  **Python 3.10+**
 2.  **Graphviz (Software)**: Required for AST visualization. [Download here](https://graphviz.org/download/).
 3.  **Node.js**: Required for the "Run JS" feature. [Download here](https://nodejs.org/).
 
 ### Setup Steps
 
-1.  **Clone the repository:**
-    ```bash
-    git clone [https://github.com/piergiuseppe51/FLC_PROJECT.git](https://github.com/piergiuseppe51/FLC_PROJECT.git)
-    cd FLC_PROJECT
-    ```
+1. **Clone the repository:**
+   ```bash
+   git clone [https://github.com/piergiuseppe51/FLC_PROJECT.git](https://github.com/piergiuseppe51/FLC_PROJECT.git)
+   cd FLC_PROJECT
 
 2.  **Install Python dependencies:**
     ```bash
