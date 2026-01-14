@@ -51,6 +51,25 @@ Py2JS supports a specific subset of the Python language mapped to JavaScript:
 
 ---
 
+## 🌐 Virtual Environment (Recommended)
+
+Before installing the dependencies, it is highly recommended to create a virtual environment to keep the project libraries isolated from your global Python system.
+
+1.  **Create the virtual environment:**
+    ```bash
+    python -m venv venv
+    ```
+
+2.  **Activate the environment:**
+    -   **Windows:**
+        ```bash
+        .\venv\Scripts\activate
+        ```
+    -   **macOS / Linux:**
+        ```bash
+        source venv/bin/activate
+        ```
+        
 ## 📦 Installation
 
 ### Prerequisites
