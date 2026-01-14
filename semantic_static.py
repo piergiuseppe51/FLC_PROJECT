@@ -5,13 +5,13 @@ from parser import (
 )
 
 """
-Semantic analysis component current approach.
+Implementation with a static approach to the semantic analyser. Provided to allow comparison with the current approach (semantic.py)
+on type inference in the symbol table.
 """
 
 class SemanticAnalyzer:
     def __init__(self):
         self.symbol_table = [{}]
-        self.call_stack = set()
 
 # --------------Helper methods-------------
 
@@ -36,6 +36,19 @@ class SemanticAnalyzer:
             if name in scope:
                 return scope[name]
         return None
+    
+    def update_function_return_type(self, name, ret_type):
+        """
+        Updates the return type of an already declared function.
+        During the declaration of the function the return type is set to 'any'.
+        After the visit of the body, it is possible to update the real return type.
+        """
+        for scope in reversed(self.symbol_table):
+            if name in scope:
+                entry = scope[name]
+                if isinstance(entry, dict) and entry.get('tag') == 'function':
+                    entry['ret_type'] = ret_type
+                    return
 
 # -----------------------------------------
 
@@ -48,13 +61,9 @@ class SemanticAnalyzer:
         match node:
 
             case list(statements):
-                last_type = None
                 for stmt in statements:
-                    res = self.visit(stmt)
-
-                    if res is not None:
-                        last_type = res
-                return last_type
+                    self.visit(stmt)
+                return
             
             case Number(_):  return 'int'
             case String(_):  return 'str'
@@ -172,18 +181,16 @@ class SemanticAnalyzer:
                     return self.visit(value)
                 return 'any'
 
-            # IF statement
+            # IF statement without ELSE
+            case IfStat(condition, true_block, None):
+                self.visit(condition)
+                self.visit(true_block)
+
+            # IF statement with ELSE
             case IfStat(condition, true_block, false_block):
                 self.visit(condition)
-                true_type = self.visit(true_block)
-                false_type = self.visit(false_block) if false_block else None
-
-                if true_type and false_type and (true_type == false_type):
-                    return true_type
-                
-                if true_type: return true_type
-                if false_type: return false_type
-                return None
+                self.visit(true_block)
+                self.visit(false_block)
 
             case ForStat(iterator, start, end, body):
                 self.define(iterator, 'int')
@@ -194,17 +201,33 @@ class SemanticAnalyzer:
                 if start_type not in ['int', 'any'] or end_type not in ['int', 'any']:
                     raise Exception("Semantic Error: FOR loop requires integers.")
                 
-                return self.visit(body)
-                
+                self.visit(body)
 
             case FunctionDecl(name, params, body):
                 func_entry = {
                     'tag': 'function',
                     'params': params,
-                    'body': body,
-                    'cache': {}
+                    'ret_type': 'any'   # if this is not modified it means that we didn't find any other type
                 }
                 self.define(name, func_entry)
+
+                self.enter_scope()
+
+                for p in params:
+                    self.define(p, 'any')   # because we don't infer input types of params
+
+                inferred_type = 'any'
+
+                try:
+                    for stmt in body:
+                        stmt_type = self.visit(stmt)
+
+                        if isinstance(stmt, ReturnStat):
+                            inferred_type = stmt_type   # we always take the last returned type. We overwrite eventual multiple subsequent returns
+                finally:
+                    self.exit_scope()
+
+                self.update_function_return_type(name, inferred_type)
 
             case FunctionCall(name, args):
                 func_entry = self.lookup(name)
@@ -215,40 +238,18 @@ class SemanticAnalyzer:
                 if not isinstance(func_entry, dict) or func_entry.get('tag') != 'function':
                     raise Exception(f"Semantic Error: '{name}' is not a function")
                 
-                params = func_entry['params']
-                if len(params) != len(args):
-                    raise Exception(f"Arg count mismatch for '{name}'. Expected {len(params)}, got {len(args)}.")
-                
-                arg_types = tuple([self.visit(arg) for arg in args])
+                param_count = len(func_entry['params'])
+                arg_count = len(args)
 
-                if arg_types in func_entry['cache']:
-                    return func_entry['cache'][arg_types]
+                if param_count != arg_count:
+                    raise Exception(f"Semantic Error: Function '{name}' expects {param_count} arguments, but got {arg_count}.")
                 
-                call_signature = (name, arg_types)
-                if call_signature in self.call_stack:
-                    return 'any'
+                for arg in args:
+                    self.visit(arg)
                 
-                self.call_stack.add(call_signature)
-                self.enter_scope()
-
-                try:
-                    for param_name, arg_type in zip(params, arg_types):
-                        self.define(param_name, arg_type)
-                    
-                    body_node = func_entry['body']
-
-                    inferred_ret_type = self.visit(body_node)
-
-                    if inferred_ret_type is None:
-                        inferred_ret_type = 'any'
-                    
-                    func_entry['cache'][arg_types] = inferred_ret_type
-                    return inferred_ret_type
-                
-                finally:
-                    self.exit_scope()
-                    self.call_stack.remove(call_signature)
+                return func_entry['ret_type']
 
             case _:
                 raise Exception(f"Unknown AST node: '{node}'")
+
 

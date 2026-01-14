@@ -4,11 +4,14 @@ from parser import (
     FunctionDecl, FunctionCall, ExprStat, ReturnStat
 )
 from semantic import SemanticAnalyzer
+# from semantic_static import SemanticAnalyzer
 
 """
 Helper script to simulate the transpiler logic.
 Displays the symbol table state to verify type inference.
 Requires manual AST insertion from the parser into the 'ast' list.
+In order to compare the two semantic approaches, it is necessary to set the semantic used one at a time.
+Uncomment the chosen semantic.
 """
 
 def run_manual_test():
