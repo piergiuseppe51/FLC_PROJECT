@@ -51,6 +51,21 @@ Py2JS supports a specific subset of the Python language mapped to JavaScript:
 
 ---
 
+## 📂 Semantic Analysis and Testing
+
+Regarding the symbol table and semantic analysis, the repository contains two versions:
+
+* **`semantic.py`**: This is the **main and updated file**. It should be used for the standard execution of the project.
+* **`semantic_static.py`**: This is the **legacy version**. It is kept in the repository solely for benchmarking and comparison purposes.
+
+### Comparison Tool
+We have provided a utility script to verify consistency between the two versions:
+
+* **`tester_symbol_table.py`**: This script allows you to view the final status of the symbol table for the specific version of semantic that you have set. You can compare the two final statuses by running the test one at a time.
+
+---
+
+
 ## 🌐 Virtual Environment (Recommended)
 
 Before installing the dependencies, it is highly recommended to create a virtual environment to keep the project libraries isolated from your global Python system.
