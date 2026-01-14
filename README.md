@@ -63,6 +63,8 @@ We have provided a utility script to verify consistency between the two versions
 
 * **`tester_symbol_table.py`**: This script allows you to view the final status of the symbol table for the specific version of semantic that you have set. You can compare the two final statuses by running the test one at a time.
 
+The script `test_cases.py` lists all the test cases analysed.
+
 ---
 
 
